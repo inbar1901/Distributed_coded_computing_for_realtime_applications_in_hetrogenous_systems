@@ -1,58 +1,92 @@
+import uuid
+
 import pika
 import sys
 import time
+import os
 import json
 import numpy as np
 
 
-# establish a connection with RabbitMQ server
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-channel = connection.channel()
+class Producer(object):
+    def __init__(self):
+        #############################################
+        # creates the queue used to deliver work to workers
+        #############################################
 
-# creating an exchange
-exchange_name = 'my_exchange'
-channel.exchange_declare(exchange=exchange_name, exchange_type='direct')
+        # establish a connection with RabbitMQ server
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        self.channel = self.connection.channel()
 
-# ---------------------------------------------------------------
-# create a queue
-queue_name = str(input('enter name of queue: '))
-result = channel.queue_declare(queue=queue_name)
+        # creating an exchange
+        self.exchange_name = 'my_exchange'
+        self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='direct')
 
-# connect exchange and queue
-channel.queue_bind(exchange=exchange_name, queue=queue_name)
+        # create a message queue
+        self.message_queue_name = str(input('enter name of queue: '))
+        print("queue name:" + self.message_queue_name)
+        result = self.channel.queue_declare(queue=self.message_queue_name)  # message queue = sends work to workers
+        self.fb_queue_name = result.method.queue
 
-# ---------------------------------------------------------------
-# create a feedback queue
-fb_queue_name = 'producer_feedback'
-fb_result = channel.queue_declare(queue=fb_queue_name)
+        # connect exchange and message queue
+        self.channel.queue_bind(exchange=self.exchange_name, queue=self.message_queue_name)
+
+        # receive message
+        self.channel.basic_consume(queue=self.fb_queue_name, on_message_callback=self.worker_response_to_producer, auto_ack=True)
+
+    def worker_response_to_producer(self, ch, method, props, body):
+        #############################################
+        # on response arrival, if the sender is identified as the worker we are waiting for,
+        # push the response to the producer
+        # params: props -       message queue properties
+        #         body -        response content
+        #############################################
+        if self.corr_id == props.correlation_id:
+            self.response = body
+
+    def wait_for_feedback(self):
+        self.response = None
+        self.corr_id = str(uuid.uuid4())
+
+        # setting the task as body of the message
+        file_name = str(input('enter name of json file: '))
+        with open(f'./{file_name}') as f:
+            task = str(json.load(f))
+        print(f' [x] Sent {task}')
+
+        # connecting to channel
+        self.corr_id = str(np.random.rand())
+        self.channel.basic_publish(exchange=self.exchange_name, routing_key=self.message_queue_name,
+                                   properties=pika.BasicProperties(reply_to=self.fb_queue_name, correlation_id=self.corr_id),
+                                   body=task)
+
+        # waiting for response
+        while self.response is None:
+            self.connection.process_data_events()
+
+        # close connection
+        self.connection.close()
+        return self.response
 
 
-def fb_callback(ch, method, properties, body):
-    print(f'{properties.correlation_id}')
-    #  getting a response from the worker
-    print(f' [x] We got a response: {body.decode()}')
+def main():
+    producer = Producer()
+    res = producer.wait_for_feedback()
 
 
-# receive message
-channel.basic_consume(queue=fb_queue_name, on_message_callback=fb_callback, auto_ack=True)
+# define never-ending loop that waits for data
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Interrupt")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
 
-# ---------------------------------------------------------------
-# setting the body of the message
-# message = ''.join(sys.argv[1:]) or 'Hi'
-file_name = str(input('enter name of json file: '))
-with open(f'./{file_name}') as f:
-    message = str(json.load(f))
 
-# connecting to channel
-corr_id = str(np.random.rand())
-channel.basic_publish(exchange=exchange_name, routing_key=queue_name,
-                      properties=pika.BasicProperties(reply_to=fb_queue_name, correlation_id=corr_id), body=message)
-print(f' [x] Sent {message}')
 
-time.sleep(10)
-
-# close connection
-connection.close()
 
 
 

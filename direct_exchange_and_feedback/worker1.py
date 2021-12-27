@@ -6,7 +6,6 @@ import json
 
 
 def main():
-
     # establish a connection with RabbitMQ server
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
@@ -17,7 +16,7 @@ def main():
 
     # ---------------------------------------------------------------
     # creating recipient queue
-    queue_name = 'worker1'
+    queue_name = 'w1'
     result = channel.queue_declare(queue=queue_name)
 
     # connect exchange and queue
@@ -38,9 +37,11 @@ def main():
         response = ' [v] worker1 is done'
         ch.basic_publish(exchange=exchange_name, routing_key=properties.reply_to,
                          properties=pika.BasicProperties(correlation_id=properties.correlation_id), body=str(response))
-        print(' [x] Done')
-        ch.basic_ack(delivery_tag=method.delivery_tag)  # acknowledging getting the message
 
+        ch.basic_ack(delivery_tag=method.delivery_tag)  # acknowledging getting the message
+        print(' [x] Done')
+
+    channel.basic_qos(prefetch_count=1)
     # receive messages from 'Try' queue
     channel.basic_consume(queue=queue_name, on_message_callback=callback)
 
