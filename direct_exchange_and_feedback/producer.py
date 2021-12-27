@@ -10,6 +10,7 @@ import numpy as np
 
 class Producer(object):
     def __init__(self):
+        # test
         #############################################
         # creates the queue used to deliver work to workers
         #############################################
