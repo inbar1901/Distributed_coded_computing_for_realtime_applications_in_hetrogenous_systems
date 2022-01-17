@@ -45,6 +45,9 @@ def main():
     # receive task result from workers
     channel.basic_consume(queue=worker1_queue_name, on_message_callback=receive_results)
 
+    # connect exchange and message queue
+    channel.queue_bind(exchange=exchange_name, queue=worker1_queue_name)
+
     # worker 2 ----------------------------------------------------------------------
     # create a message queue
     worker2_queue_name = "w2_fusion"
@@ -53,6 +56,9 @@ def main():
     # receive task result from workers
     channel.basic_consume(queue=worker2_queue_name, on_message_callback=receive_results)
 
+    # connect exchange and message queue
+    channel.queue_bind(exchange=exchange_name, queue=worker2_queue_name)
+
     # worker 3 ----------------------------------------------------------------------
     # create a message queue
     worker3_queue_name = "w3_fusion"
@@ -60,6 +66,9 @@ def main():
 
     # receive task result from workers
     channel.basic_consume(queue=worker3_queue_name, on_message_callback=receive_results)
+
+    # connect exchange and message queue
+    channel.queue_bind(exchange=exchange_name, queue=worker3_queue_name)
 
     # consuming ---------------------------------------------------------------------
     # start listening for task results
