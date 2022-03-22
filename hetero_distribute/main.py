@@ -24,7 +24,7 @@ class Producer(object):
 
         # create a message queue
         self.message_queue_name = str(input('enter name of queue: '))
-        print("[init]: queue name:" + self.message_queue_name)
+        # print("[init]: queue name:" + self.message_queue_name) # FOR DEBUG
         result = self.channel.queue_declare(queue=self.message_queue_name)  # message queue = sends work to workers
         self.fb_queue_name = result.method.queue
 
@@ -36,16 +36,19 @@ class Producer(object):
 
     def worker_response_to_producer(self, ch, method, props, body):
         #############################################
-        # on response arrival, if the sender is identified as the worker we are waiting for,
+        # On response arrival, if the sender is identified as the worker we are waiting for,
         # push the response to the producer
         # params: props -       message queue properties
         #         body -        response content
         #############################################
-        print("[worker_response_to_producer]: begin")
+        # print("[worker_response_to_producer]: begin") # FOR DEBUG
         if self.corr_id == props.correlation_id:
             self.response = body
 
     def wait_for_feedback(self):
+        #############################################
+        # Send a job to a worker and wait for response
+        #############################################
         self.response = None
         self.corr_id = str(uuid.uuid4())
 

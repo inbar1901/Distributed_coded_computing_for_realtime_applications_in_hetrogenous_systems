@@ -17,9 +17,9 @@ def receive_results(ch, method, properties, body):
 
     # sending feedback to producer
     response = ' [v] worker1 is done'
-    print("[receive_results]: properties.reply_to: " + str(properties.reply_to) + " type: " + str(
-        type(properties.reply_to)))
-    print("[receive_results]: properties.correlation_id: " + str(properties.correlation_id) )
+    # print("[receive_results]: properties.reply_to: " + str(properties.reply_to) + " type: " + str(
+    #     type(properties.reply_to))) # FOR DEBUG
+    # print("[receive_results]: properties.correlation_id: " + str(properties.correlation_id) ) # FOR DEBUG
     exchange_name = 'fusion_exchange' # double declaration
     ch.basic_publish(exchange=exchange_name, routing_key=str(properties.reply_to),
                      properties=pika.BasicProperties(correlation_id=properties.correlation_id), body=str(response))

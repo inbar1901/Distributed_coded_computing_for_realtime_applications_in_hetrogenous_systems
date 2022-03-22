@@ -37,7 +37,7 @@ class Worker(object):
         self.fusion_queue_name = "w3_fusion"
         self.fusion_queue_declare = self.channel_fusion.queue_declare(queue=self.fusion_queue_name)
         self.fusion_feedback_queue_name = str(self.fusion_queue_declare.method.queue)
-        print("[init]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name)))
+        # print("[init]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name))) # FOR DEBUG
 
         # connect exchange and fusion queue
         self.channel_fusion.queue_bind(exchange=self.fusion_exchange_name, queue=self.fusion_queue_name)
@@ -59,18 +59,18 @@ class Worker(object):
         # params: props -       message queue properties
         #         body -        response content
         #############################################
-        print("[fusion_response]: begin")
-        print("[fusion_response]: self.corr_id: " + str(self.corr_id))
-        print("[fusion_response]: props.correlation_id: " + str(props.correlation_id))
+        # print("[fusion_response]: begin") # FOR DEBUG
+        # print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
+        # print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
         if self.corr_id == props.correlation_id:
-            print("[fusion_response]: inside if")
+            # print("[fusion_response]: inside if") # FOR DEBUG
             self.response_from_fusion = body
 
     def send_to_fusion_and_wait_for_feedback(self, result_file_name):
         #############################################
         # send the task result to fusion node and wait for response
         #############################################
-        print("[send_to_fusion_and_wait_for_feedback]: begin")
+        # print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
 
         # producer - worker to fusion node #
         # receive feedback from fusion node
@@ -90,11 +90,11 @@ class Worker(object):
 
         # connecting to channel
         self.corr_id = str(np.random.rand())
-        print("[send_to_fusion_and_wait_for_feedback]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name)))
+        # print("[send_to_fusion_and_wait_for_feedback]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name))) # FOR DEBUG
         self.channel_fusion.basic_publish(exchange=self.fusion_exchange_name, routing_key=self.fusion_queue_name,
                                              properties=pika.BasicProperties(reply_to=self.fusion_feedback_queue_name,
                                                                              correlation_id=self.corr_id), body=task_result)
-        print("[send_to_fusion_and_wait_for_feedback]: sent result to fusion")
+        # print("[send_to_fusion_and_wait_for_feedback]: sent result to fusion") # FOR DEBUG
 
         # waiting for response from fusion
         while self.response_from_fusion is None:
@@ -122,11 +122,11 @@ class Worker(object):
 
         # sending feedback to main
         response_to_main = ' [v] worker1 is done'
-        print("[work]: responding to main")
+        # print("[work]: responding to main") # FOR DEBUG
         ch.basic_publish(exchange=self.main_exchange_name, routing_key=properties.reply_to,
                          properties=pika.BasicProperties(correlation_id=properties.correlation_id),
                          body=str(response_to_main))
-        print("[work]: sent response to main")
+        # print("[work]: sent response to main") # FOR DEBUG
 
         # sending task result to fusion node
         self.send_to_fusion_and_wait_for_feedback(task_result_file_name)
