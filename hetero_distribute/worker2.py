@@ -63,7 +63,7 @@ class Worker(object):
         # print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
         # print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
         if self.corr_id == props.correlation_id:
-            print("[fusion_response]: inside if")
+            # print("[fusion_response]: inside if") # FOR DEBUG
             self.response_from_fusion = body
 
     def send_to_fusion_and_wait_for_feedback(self, result_file_name):
@@ -72,11 +72,9 @@ class Worker(object):
         #############################################
         # print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
 
-        # producer - worker to fusion node #
         # receive feedback from fusion node
         self.channel_fusion.basic_consume(queue=self.fusion_feedback_queue_name, on_message_callback=self.fusion_response,
                                    auto_ack=True)
-
 
         # init
         self.response_from_fusion = None

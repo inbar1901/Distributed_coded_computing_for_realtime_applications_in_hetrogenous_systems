@@ -72,11 +72,9 @@ class Worker(object):
         #############################################
         # print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
 
-        # producer - worker to fusion node #
         # receive feedback from fusion node
         self.channel_fusion.basic_consume(queue=self.fusion_feedback_queue_name, on_message_callback=self.fusion_response,
                                    auto_ack=True)
-
 
         # init
         self.response_from_fusion = None

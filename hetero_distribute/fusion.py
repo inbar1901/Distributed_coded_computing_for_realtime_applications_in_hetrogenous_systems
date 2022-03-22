@@ -24,7 +24,6 @@ def receive_results(ch, method, properties, body):
     ch.basic_publish(exchange=exchange_name, routing_key=str(properties.reply_to),
                      properties=pika.BasicProperties(correlation_id=properties.correlation_id), body=str(response))
 
-    ch.basic_ack(delivery_tag=method.delivery_tag)  # acknowledging getting the message
     print(' [x] Done')
 
 
