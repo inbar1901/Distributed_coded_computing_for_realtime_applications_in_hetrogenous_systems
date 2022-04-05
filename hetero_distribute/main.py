@@ -34,6 +34,9 @@ class Producer(object):
         # receive message
         self.channel.basic_consume(queue=self.fb_queue_name, on_message_callback=self.worker_response_to_producer, auto_ack=True)
 
+        # job managing
+        self.curr_job_number = 0
+
     def worker_response_to_producer(self, ch, method, props, body):
         #############################################
         # On response arrival, if the sender is identified as the worker we are waiting for,
@@ -73,6 +76,13 @@ class Producer(object):
         self.connection.close()
         return self.response
 
+    def create_header(self, k):
+        """
+        create message header with the details:
+            - job number
+            - task number
+            - k - amount of tasks to complete job
+        """
 
 def main():
     producer = Producer()
@@ -89,7 +99,6 @@ if __name__ == '__main__':
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-
 
 
 

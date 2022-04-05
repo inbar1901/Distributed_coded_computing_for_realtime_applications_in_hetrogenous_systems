@@ -112,9 +112,17 @@ class Worker(object):
 
         # convert message into json file and save it
         task = json.dumps(body.decode())
+
+        # read task
+        self.upack_task(task)
+
+        # compute result
+        self.multiply_polynomes()
+
+        # write answer
         task_result_file_name = 'w1.json'
         out_file = open(task_result_file_name, 'w')
-        out_file.write(task)
+        out_file.write(self.result)
         out_file.close()
         print(' [x] Saved json file')
 
@@ -131,6 +139,20 @@ class Worker(object):
         print(' [x] Done')
 
         return
+
+    def upack_task(self, task):
+        """
+
+        """
+        pass
+
+    def multiply_polynomes(self):
+        """
+
+        """
+        sleep(10) # TODO change to simulation results
+        self.result = 1
+
 
 def main():
     worker = Worker()
