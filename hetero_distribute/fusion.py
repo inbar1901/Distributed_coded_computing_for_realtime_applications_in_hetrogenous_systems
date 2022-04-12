@@ -1,13 +1,22 @@
+#!/usr/bin/env python3
 import pika
 import sys
 import os
 import time
 import json
 
+# Adding a file from the nfs that contains all the ips, usernames and passwords
+sys.path.append("/var/nfs/general") # from computer
+# sys.path.append("nfs/general/cred.py") # from servers
+import cred
+
+
 class Fusion():
     def __init__(self):
         # establish a connection with RabbitMQ server
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
+        self.credentials = pika.PlainCredentials(cred.rbt_user, cred.rbt_password)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
         self.channel = self.connection.channel()
 
         # creating an exchange
@@ -52,7 +61,7 @@ class Fusion():
         print(' [*] waiting for messages. To exit press CTRL+C')
         self.channel.start_consuming()
 
-    def receive_results(ch, method, properties, body):
+    def receive_results(self, ch, method, properties, body):
         print(' [x] Received')
         print(' [x] Converting into json file')
         # convert message into json file and save it
@@ -63,7 +72,7 @@ class Fusion():
         print(' [x] Saved json file')
 
         # sending feedback to producer
-        response = ' [v] worker1 is done'
+        response = ' [v] from fusion: received work'
         # print("[receive_results]: properties.reply_to: " + str(properties.reply_to) + " type: " + str(
         #     type(properties.reply_to))) # FOR DEBUG
         # print("[receive_results]: properties.correlation_id: " + str(properties.correlation_id) ) # FOR DEBUG

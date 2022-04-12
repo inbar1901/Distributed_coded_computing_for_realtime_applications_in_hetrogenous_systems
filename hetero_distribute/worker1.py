@@ -5,11 +5,17 @@ import time
 import json
 import uuid
 import numpy as np
+# Adding a file from the nfs that contains all the ips, usernames and passwords
+sys.path.append("/var/nfs/general") # from computer
+# sys.path.append("nfs/general/cred.py") # from servers
+import cred
 
 class Worker(object):
     def __init__(self):
         # establish a connection with RabbitMQ server
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
+        self.credentials = pika.PlainCredentials(cred.rbt_user, cred.rbt_password)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
         self.channel = self.connection.channel()
 
         # --------------------- parameters for main node --------------------- #
@@ -26,7 +32,8 @@ class Worker(object):
 
         # --------------------- parameters for fusion node --------------------- #
         # establish a connection with RabbitMQ server
-        self.connection_fusion = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
+        self.connection_fusion = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
         self.channel_fusion = self.connection_fusion.channel()
 
         # creating an exchange with fusion node
@@ -59,18 +66,23 @@ class Worker(object):
         # params: props -       message queue properties
         #         body -        response content
         #############################################
-        # print("[fusion_response]: begin") # FOR DEBUG
-        # print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
-        # print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
-        if self.corr_id == props.correlation_id:
-            # print("[fusion_response]: inside if") # FOR DEBUG
+        print("[fusion_response]: begin") # FOR DEBUG
+        print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
+        print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
+
+        if "[v] from fusion" in str(body):
+            print("[fusion_response]: inside if")  # FOR DEBUG
             self.response_from_fusion = body
+
+        # if self.corr_id == props.correlation_id:
+        #     print("[fusion_response]: inside if") # FOR DEBUG
+        #     self.response_from_fusion = body
 
     def send_to_fusion_and_wait_for_feedback(self, result_file_name):
         #############################################
         # send the task result to fusion node and wait for response
         #############################################
-        # print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
+        print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
 
         # receive feedback from fusion node
         self.channel_fusion.basic_consume(queue=self.fusion_feedback_queue_name, on_message_callback=self.fusion_response,
@@ -89,6 +101,7 @@ class Worker(object):
         # connecting to channel
         self.corr_id = str(np.random.rand())
         # print("[send_to_fusion_and_wait_for_feedback]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name))) # FOR DEBUG
+
         self.channel_fusion.basic_publish(exchange=self.fusion_exchange_name, routing_key=self.fusion_queue_name,
                                              properties=pika.BasicProperties(reply_to=self.fusion_feedback_queue_name,
                                                                              correlation_id=self.corr_id), body=task_result)
@@ -122,13 +135,14 @@ class Worker(object):
         # write answer
         task_result_file_name = 'w1.json'
         out_file = open(task_result_file_name, 'w')
-        out_file.write(self.result)
+        out_file.write(json.dumps(self.result))
         out_file.close()
         print(' [x] Saved json file')
 
         # sending feedback to main
-        response_to_main = ' [v] worker1 is done'
+        response_to_main = ' [v] from worker: worker1 is done'
         # print("[work]: responding to main") # FOR DEBUG
+
         ch.basic_publish(exchange=self.main_exchange_name, routing_key=properties.reply_to,
                          properties=pika.BasicProperties(correlation_id=properties.correlation_id),
                          body=str(response_to_main))
@@ -150,8 +164,8 @@ class Worker(object):
         """
 
         """
-        sleep(10) # TODO change to simulation results
-        self.result = 1
+        time.sleep(1) # TODO change to simulation results
+        self.result = {"hi": 1}
 
 
 def main():
