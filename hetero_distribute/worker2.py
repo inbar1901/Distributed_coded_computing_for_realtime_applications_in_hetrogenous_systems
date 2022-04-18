@@ -5,9 +5,11 @@ import time
 import json
 import uuid
 import numpy as np
+import ast
+
 # Adding a file from the nfs that contains all the ips, usernames and passwords
-# sys.path.append("/var/nfs/general") # from computer
-sys.path.append("/nfs/general/cred.py") # from servers
+sys.path.append("/var/nfs/general") # from computer
+# sys.path.append("/nfs/general/cred.py") # from servers
 
 import cred
 
@@ -50,6 +52,10 @@ class Worker(object):
         # connect exchange and fusion queue
         self.channel_fusion.queue_bind(exchange=self.fusion_exchange_name, queue=self.fusion_queue_name)
 
+        # connect feedback from fusion node
+        self.channel_fusion.basic_consume(queue=self.fusion_feedback_queue_name, on_message_callback=self.fusion_response,
+                                   auto_ack=True)
+
         # --------------------- consume from all queues --------------------- #
         # consumer - worker from main node #
         # receive messages from main node
@@ -58,6 +64,7 @@ class Worker(object):
         # start listening for messages
         print(' [*] waiting for tasks. To exit press CTRL+C')
         self.channel.start_consuming()
+
 
 
     def fusion_response(self, ch, method, props, body):
@@ -70,6 +77,7 @@ class Worker(object):
         print("[fusion_response]: begin") # FOR DEBUG
         print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
         print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
+        print("[fusion_response]: body: " + str(body)) # FOR DEBUG
 
         if "[v] from fusion" in str(body):
             print("[fusion_response]: inside if")  # FOR DEBUG
@@ -79,33 +87,25 @@ class Worker(object):
         #     print("[fusion_response]: inside if") # FOR DEBUG
         #     self.response_from_fusion = body
 
-    def send_to_fusion_and_wait_for_feedback(self, result_file_name):
+    def send_to_fusion_and_wait_for_feedback(self):
         #############################################
         # send the task result to fusion node and wait for response
         #############################################
         print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
+        print("[send_to_fusion_and_wait_for_feedback]: queue name: " + str(self.fusion_feedback_queue_name)) # FOR DEBUG
 
-        # receive feedback from fusion node
-        self.channel_fusion.basic_consume(queue=self.fusion_feedback_queue_name, on_message_callback=self.fusion_response,
-                                   auto_ack=True)
 
         # init
         self.response_from_fusion = None
-        self.corr_id = str(uuid.uuid4())
 
-        # setting the task solution as body of the message to fusion node
-        file_name = result_file_name
-        with open(f'./{file_name}') as f:
-            task_result = str(json.load(f))
-        print(f' [x] Sent task to fusion')
-
-        # connecting to channel
+         # send to fusion
         self.corr_id = str(np.random.rand())
-        # print("[send_to_fusion_and_wait_for_feedback]: fusion feedback queue name: " + self.fusion_feedback_queue_name + " type: " + str(type(self.fusion_feedback_queue_name))) # FOR DEBUG
-
+         # FOR DEBUG
+        print("[send_to_fusion_and_wait_for_feedback]: exchange name: " + str(self.fusion_exchange_name) + " fusion_queue_name: " + str(self.fusion_queue_name) + " result: " +str(self.result)) # FOR DEBUG
         self.channel_fusion.basic_publish(exchange=self.fusion_exchange_name, routing_key=self.fusion_queue_name,
                                              properties=pika.BasicProperties(reply_to=self.fusion_feedback_queue_name,
-                                                                             correlation_id=self.corr_id), body=task_result)
+                                                                             correlation_id=self.corr_id), body=str(self.result))
+        print(f' [x] Sent task to fusion')
         # print("[send_to_fusion_and_wait_for_feedback]: sent result to fusion") # FOR DEBUG
 
         # waiting for response from fusion
@@ -114,24 +114,26 @@ class Worker(object):
 
         print(" [x] Got an answer from fusion")
 
-        return self.response_from_fusion
 
     def work(self, ch, method, properties, body):
         #############################################
         # getting work from main, executing task and
         # send response to main
         #############################################
-
         print(' [x] Received task from main')
+        # init variables
+        self.result = None
 
         # convert message into json file and save it
-        task = json.dumps(body.decode())
+        task = ast.literal_eval(json.dumps(body.decode()))
+        task = ast.literal_eval(task) # we need DOUBLE unpacking
 
         # read task
-        self.upack_task(task)
+        header,task_content = self.upack_task(task)
 
         # compute result
-        self.multiply_polynomes()
+        task_content = self.multiply_polynomes(task_content)
+        self.result = {"Header": header, "result": task_content}
 
         # write answer
         task_result_file_name = 'w2.json'
@@ -150,8 +152,8 @@ class Worker(object):
         # print("[work]: sent response to main") # FOR DEBUG
 
         # sending task result to fusion node
-        self.send_to_fusion_and_wait_for_feedback(task_result_file_name)
-        print(' [x] Done')
+        self.send_to_fusion_and_wait_for_feedback()
+        print(' [x] Done\n\n')
 
         return
 
@@ -159,14 +161,16 @@ class Worker(object):
         """
 
         """
-        pass
+        header = task["Header"]
+        task_content = task["task"]
+        return header, task_content
 
-    def multiply_polynomes(self):
+    def multiply_polynomes(self, task_content):
         """
 
         """
         time.sleep(1) # TODO change to simulation results
-        self.result = {"hi": 1}
+        return task_content
 
 
 def main():

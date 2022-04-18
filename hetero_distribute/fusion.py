@@ -21,7 +21,10 @@ import cred
 
 class Fusion():
     def __init__(self):
-        # establish a connection with RabbitMQ server
+        ###### ------------ fusion variables init ------------ ######
+        self.count_tasks = {}
+
+        ###### ------- establish a connection with RabbitMQ server ------- ######
         # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
         self.credentials = pika.PlainCredentials(cred.rbt_user, cred.rbt_password)
         self.connection = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
@@ -69,12 +72,27 @@ class Fusion():
         print(' [*] waiting for messages. To exit press CTRL+C')
         self.channel.start_consuming()
 
+
+
     def receive_results(self, ch, method, properties, body):
+        """
+        called whenever fusion gets a result from a worker
+        :param ch: channel
+        :param method: --
+        :param properties: current message properties
+        :param body: msg content
+        """
         print(' [x] Received')
         print(' [x] Converting into json file')
         # convert message into json file and save it
         msg = ast.literal_eval(json.dumps(body.decode()))
 
+        # count the received task in the right job
+        dict_msg = ast.literal_eval(msg)
+        self.count_tasks_func(dict_msg["Header"])
+        print(str(self.count_tasks)) # FOR DEBUG
+
+        # save result
         out_file = open('out.json', 'w')
         out_file.write(msg)
         out_file.close()
@@ -89,8 +107,18 @@ class Fusion():
         ch.basic_publish(exchange=exchange_name, routing_key=str(properties.reply_to),
                          properties=pika.BasicProperties(correlation_id=properties.correlation_id), body=str(response))
 
-        print(' [x] Done')
+        print(' [x] Done\n\n')
 
+    def count_tasks_func(self, msg_header):
+        """
+        count_tasks is a dictionary of job numbers
+        in each job nuber we have a list: max tasks needed = k | current tasks received
+        :param msg_header: current message header
+        """
+        if str(msg_header["job_number"]) in self.count_tasks.keys():
+            self.count_tasks[str(msg_header["job_number"])][1] += 1
+        else:
+            self.count_tasks[str(msg_header["job_number"])] = [msg_header["k"], 1]
 
 def main():
     fusion = Fusion()

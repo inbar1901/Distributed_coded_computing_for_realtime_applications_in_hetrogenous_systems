@@ -75,7 +75,7 @@ class Producer(object):
 
         # create a dictionary: splitting the job to tasks + adding headers
         k = 5 # TODO - implementing optimization problem to determine k
-        header = self.create_header(1,1,k) # todo - add loops for all tasks in job and for all jobs
+        header = self.create_header(2,1,k) # todo - add loops for all tasks in job and for all jobs
         task = str({"Header": header, "task": job})
 
         print(f' [x] Sent task: ' + task)
@@ -107,7 +107,7 @@ class Producer(object):
         :param k: amount of tasks to complete job
         :return: header for one task
         """
-        header = {"job number": job_num, "task number": task_num, "k": k}
+        header = {"job_number": job_num, "task_number": task_num, "k": k}
         return header
 
 def main():
