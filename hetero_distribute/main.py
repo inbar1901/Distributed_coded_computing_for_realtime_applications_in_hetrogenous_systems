@@ -59,7 +59,7 @@ class Producer(object):
         if "[v] from worker" in str(body):
             self.response = body
 
-    def wait_for_feedback(self):
+    def send_task_wait_for_feedback(self):
         #############################################
         # Send a job to a worker and wait for response
         #############################################
@@ -112,7 +112,7 @@ class Producer(object):
 
 def main():
     producer = Producer()
-    res = producer.wait_for_feedback()
+    res = producer.send_task_wait_for_feedback()
 
 
 # define never-ending loop that waits for data
