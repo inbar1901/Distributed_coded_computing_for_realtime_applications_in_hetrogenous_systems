@@ -13,6 +13,12 @@ sys.path.append("/var/nfs/general") # from computer
 import cred
 
 
+# Adding a file from the nfs that contains all the ips, usernames and passwords
+sys.path.append("/var/nfs/general") # from computer
+# sys.path.append("nfs/general/cred.py") # from servers
+import cred
+
+
 class Fusion():
     def __init__(self):
         # establish a connection with RabbitMQ server
