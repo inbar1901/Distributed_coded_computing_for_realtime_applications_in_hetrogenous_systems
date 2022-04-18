@@ -6,6 +6,10 @@ import time
 import os
 import json
 import numpy as np
+# Adding a file from the nfs that contains all the ips, usernames and passwords
+sys.path.append("/var/nfs/general") # from computer
+# sys.path.append("nfs/general/cred.py") # from servers
+import cred
 
 
 class Producer(object):
@@ -15,7 +19,9 @@ class Producer(object):
         #############################################
 
         # establish a connection with RabbitMQ server
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
+        self.credentials = pika.PlainCredentials(cred.rbt_user, cred.rbt_password)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
         self.channel = self.connection.channel()
 
         # creating an exchange
@@ -44,25 +50,40 @@ class Producer(object):
         # params: props -       message queue properties
         #         body -        response content
         #############################################
-        # print("[worker_response_to_producer]: begin") # FOR DEBUG
-        if self.corr_id == props.correlation_id:
+        print("[worker_response_to_producer]: begin") # FOR DEBUG
+        print("[worker_response_to_producer]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
+        print("[worker_response_to_producer]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
+        # if self.corr_id == props.correlation_id:
+        #     self.response = body
+
+        if "[v] from worker" in str(body):
             self.response = body
 
     def wait_for_feedback(self):
         #############################################
         # Send a job to a worker and wait for response
         #############################################
+        print("[wait_for_feedback]: begin") # FOR DEBUG
+
         self.response = None
         self.corr_id = str(uuid.uuid4())
 
         # setting the task as body of the message
         file_name = str(input('enter name of json file: '))
         with open(f'./{file_name}') as f:
-            task = str(json.load(f))
-        print(f' [x] Sent task')
+            job = str(json.load(f))
+
+        # create a dictionary: splitting the job to tasks + adding headers
+        k = 5 # TODO - implementing optimization problem to determine k
+        header = self.create_header(1,1,k) # todo - add loops for all tasks in job and for all jobs
+        task = str({"Header": header, "task": job})
+
+        print(f' [x] Sent task: ' + task)
 
         # connecting to channel
         self.corr_id = str(np.random.rand())
+        print("[wait_for_feedback]: corr_id: " + str(self.corr_id)) # FOR DEBUG
+
         self.channel.basic_publish(exchange=self.exchange_name, routing_key=self.message_queue_name,
                                    properties=pika.BasicProperties(reply_to=self.fb_queue_name, correlation_id=self.corr_id),
                                    body=task)
@@ -76,13 +97,18 @@ class Producer(object):
         self.connection.close()
         return self.response
 
-    def create_header(self, k):
+
+
+    def create_header(self, job_num, task_num, k):
         """
         create message header with the details:
-            - job number
-            - task number
-            - k - amount of tasks to complete job
+        :param job_num: job number
+        :param task_num: task number
+        :param k: amount of tasks to complete job
+        :return: header for one task
         """
+        header = {"job number": job_num, "task number": task_num, "k": k}
+        return header
 
 def main():
     producer = Producer()

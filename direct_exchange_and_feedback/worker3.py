@@ -34,7 +34,7 @@ def main():
         print(' [x] Saved json file')
 
         # sending feedback to producer
-        response = ' [v] worker1 is done'
+        response = ' [v] worker3 is done'
         ch.basic_publish(exchange=exchange_name, routing_key=properties.reply_to,
                          properties=pika.BasicProperties(correlation_id=properties.correlation_id), body=str(response))
 
