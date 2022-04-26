@@ -9,8 +9,8 @@ import ast
 import math
 
 # Adding a file from the nfs that contains all the ips, usernames and passwords
-sys.path.append("/var/nfs/general") # from computer
-# sys.path.append("/nfs/general/cred.py") # from servers
+# sys.path.append("/var/nfs/general") # from computer
+sys.path.append("/nfs/general/cred.py") # from servers
 
 import cred
 
