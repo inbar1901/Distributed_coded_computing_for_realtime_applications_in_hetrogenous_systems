@@ -8,9 +8,11 @@ import json
 import numpy as np
 # Adding a file from the nfs that contains all the ips, usernames and passwords
 sys.path.append("/var/nfs/general") # from computer
-# sys.path.append("nfs/general/cred.py") # from servers
+# sys.path.append("/nfs/general") # from servers
 import cred
 
+local_nfs_path = "/var/nfs/general"
+server_nfs_path = "/nfs/general"
 
 class Producer(object):
     def __init__(self):
@@ -28,9 +30,22 @@ class Producer(object):
         self.exchange_name = 'my_exchange'
         self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='direct')
 
+        # where to run
+        valid_run_type = 1
+        while valid_run_type:
+            self.run_type = str(input('where to run: ')) # s - server, l - local
+            if self.run_type == "s":
+                self.path = server_nfs_path
+                valid_run_type = 0
+            elif self.run_type == "l":
+                self.path = local_nfs_path
+                valid_run_type = 0
+
         # create a message queue
         self.message_queue_name = str(input('enter name of queue: '))
         # print("[init]: queue name:" + self.message_queue_name) # FOR DEBUG
+        self.to_worker_num = int(self.message_queue_name[1])
+        print(f'[init]: worker number: {self.to_worker_num}') # FOR DEBUG
         result = self.channel.queue_declare(queue=self.message_queue_name)  # message queue = sends work to workers
         self.fb_queue_name = result.method.queue
 
@@ -59,7 +74,7 @@ class Producer(object):
         if "[v] from worker" in str(body):
             self.response = body
 
-    def wait_for_feedback(self):
+    def send_task_wait_for_feedback(self):
         #############################################
         # Send a job to a worker and wait for response
         #############################################
@@ -68,15 +83,22 @@ class Producer(object):
         self.response = None
         self.corr_id = str(uuid.uuid4())
 
-        # setting the task as body of the message
-        file_name = str(input('enter name of json file: '))
-        with open(f'./{file_name}') as f:
+        # reading the jobs from a file
+        jobs_file_name = str(input('enter name of json file: '))
+        with open(f'./{jobs_file_name}') as f:
             job = str(json.load(f))
 
         # create a dictionary: splitting the job to tasks + adding headers
-        k = 5 # TODO - implementing optimization problem to determine k
-        header = self.create_header(2,1,k) # todo - add loops for all tasks in job and for all jobs
-        task = str({"Header": header, "task": job})
+        k = 2 # TODO - implementing optimization problem to determine k
+        header = self.create_header(3,1,k) # todo - add loops for all tasks in job and for all jobs
+
+        # write the task to a file in the nfs
+        work_file_name = f'{local_nfs_path}/w{self.to_worker_num}_job{header["job_number"]}_task{header["task_number"]}'
+        with open(work_file_name, 'w') as f_work:
+            json.dump(job, f_work)
+
+        task_file_for_servers = f'{self.path}/w{self.to_worker_num}_job{header["job_number"]}_task{header["task_number"]}'
+        task = str({"Header": header, "task": task_file_for_servers})
 
         print(f' [x] Sent task: ' + task)
 
@@ -112,7 +134,7 @@ class Producer(object):
 
 def main():
     producer = Producer()
-    res = producer.wait_for_feedback()
+    res = producer.send_task_wait_for_feedback()
 
 
 # define never-ending loop that waits for data

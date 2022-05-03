@@ -1,1 +1,1 @@
-{'Header': {'job_number': 2, 'task_number': 1, 'k': 5}, 'result': "{'firstName': 'Rack'}"}
+{'Header': {'job_number': 3, 'task_number': 1, 'k': 2, 'worker_num': 2}, 'result': '/var/nfs/general/w2_job3_task1'}
