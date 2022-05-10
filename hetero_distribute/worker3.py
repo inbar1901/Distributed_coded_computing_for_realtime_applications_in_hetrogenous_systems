@@ -39,8 +39,13 @@ class Worker(object):
         self.worker_queue_name = "w" + str(self.worker_num) + "_main"
         self.channel.queue_declare(queue=self.worker_queue_name)
 
+        # creating feedback queue to the main node # FOR DEBUG
+        self.feedback_from_worker_queue_name = "fb_w" + str(self.worker_num) + "_main"
+        self.channel.queue_declare(queue=self.feedback_from_worker_queue_name)
+
         # connect exchange and queue
         self.channel.queue_bind(exchange=self.main_exchange_name, queue=self.worker_queue_name)
+        self.channel.queue_bind(exchange=self.main_exchange_name, queue=self.feedback_from_worker_queue_name)
 
         # --------------------- parameters for fusion node --------------------- #
         # establish a connection with RabbitMQ server
@@ -83,27 +88,23 @@ class Worker(object):
         #         body -        response content
         #############################################
         print("[fusion_response]: begin") # FOR DEBUG
-        print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
-        print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
-        print("[fusion_response]: body: " + str(body)) # FOR DEBUG
+        # print("[fusion_response]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
+        # print("[fusion_response]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
+        # print("[fusion_response]: body: " + str(body)) # FOR DEBUG
 
         if "[v] from fusion" in str(body):
-            print("[fusion_response]: inside if")  # FOR DEBUG
+            # print("[fusion_response]: inside if")  # FOR DEBUG
             self.response_from_fusion = ast.literal_eval(json.dumps(body.decode()))
             self.response_from_fusion  = ast.literal_eval(self.response_from_fusion ) # we need DOUBLE unpacking because we have double casting to str
 
             # update forbidden_val
             self.update_forbidden_jobs()
 
-        # if self.corr_id == props.correlation_id:
-        #     print("[fusion_response]: inside if") # FOR DEBUG
-        #     self.response_from_fusion = body
 
     def send_to_fusion_and_wait_for_feedback(self):
         #############################################
         # send the task result to fusion node and wait for response
         #############################################
-        print("[send_to_fusion_and_wait_for_feedback]: begin") # FOR DEBUG
 
         # init
         self.response_from_fusion = None
@@ -137,11 +138,11 @@ class Worker(object):
 
         # read task
         header, task_content, task_result_file_name = self.unpack_task(task)
+        print("[work]: working on job: " + str(header["job_number"]) + " task: " + str(header["task_number"])) # FOR DEBUG
 
         # making sure we got a task in a valid job (a job that is still in progress)
         if (header["job_number"] in self.forbidden_jobs) or (header["job_number"] <= self.forbidden_val):
             print(f' [x] The job {header["job_number"]} is already done\n\n')
-            response_to_main = ' [v] from worker: worker1 is done'
 
             # sending feedback to main
             # TODO: we need to add if we are free and how long we worked (if we have worked)
@@ -164,7 +165,7 @@ class Worker(object):
             self.result["result"] = task_result_file_name
 
             # sending feedback to main
-            response_to_main = ' [v] from worker: worker1 is done'
+            response_to_main = f' [v] from worker: worker1 is done: job {header["job_number"]} , task {header["task_number"]}'
 
             ch.basic_publish(exchange=self.main_exchange_name, routing_key=properties.reply_to,
                              properties=pika.BasicProperties(correlation_id=properties.correlation_id),
@@ -180,7 +181,7 @@ class Worker(object):
         """
 
         """
-        print("[unpack_task] The task received from main: " + str(task)) # FOR DEBUG
+        # print("[unpack_task] The task received from main: " + str(task)) # FOR DEBUG
         header = task["Header"]
         header["worker_num"] = self.worker_num
 
@@ -205,25 +206,18 @@ class Worker(object):
         :return:
         """
         # If new forbidden job is above self.forbidden_val, enter it to self.forbidden_jobs. Else it included already in self.forbidden_val
-        print("[update_forbidden_jobs]: enter with forbidden_val: " + str(self.forbidden_val) + " forbidden_jobs_list: " + str(
-            self.forbidden_jobs))  # FOR DEBUG
         for job_num in self.response_from_fusion["forbidden_jobs"]:
             if job_num > self.forbidden_val:
-                print("[update_forbidden_jobs]: entering job number " + str(job_num) + " to forbidden list") # FOR DEBUG
                 self.forbidden_jobs += [job_num]
-                print("[update_forbidden_jobs]: forbidden_val: " + str(
-                    self.forbidden_val) + " forbidden_jobs_list: " + str(self.forbidden_jobs))  # FOR DEBUG
+
         self.forbidden_jobs.sort()
 
         # Update self.forbidden_val to max consecutive number
         # if the list of forbidden jobs is not empty AND forbidden vals needs to be updated
         while len(self.forbidden_jobs) > 0 \
                 and self.forbidden_jobs[self.binary_search_upper(self.forbidden_jobs, self.forbidden_val)] == self.forbidden_val + 1:
-
-            print("[update_forbidden_jobs]: self.binary_search_upper result: " + str(self.binary_search_upper(self.forbidden_jobs, self.forbidden_val)) ) # FOR DEBUG
             self.forbidden_val += 1
             self.forbidden_jobs = self.forbidden_jobs[self.binary_search_upper(self.forbidden_jobs, self.forbidden_val)+1:]
-            print("[update_forbidden_jobs]: forbidden_val: " + str(self.forbidden_val) + " forbidden_jobs_list: " + str(self.forbidden_jobs)) # FOR DEBUG
 
     def binary_search_upper(self, arr, x):
         """
