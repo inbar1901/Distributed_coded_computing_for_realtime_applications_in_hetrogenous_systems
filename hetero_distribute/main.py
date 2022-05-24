@@ -11,7 +11,7 @@ import ast
 
 # Adding a file from the nfs that contains all the ips, usernames and passwords
 sys.path.append("/var/nfs/general") # from computer
-# sys.path.append("/nfs/general") # from servers
+sys.path.append("/nfs/general") # from servers
 import cred
 
 local_nfs_path = "/var/nfs/general"
