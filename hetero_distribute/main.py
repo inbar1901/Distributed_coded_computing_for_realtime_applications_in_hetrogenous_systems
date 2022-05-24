@@ -7,6 +7,7 @@ import os
 import json
 import numpy as np
 import threading
+import ast
 
 # Adding a file from the nfs that contains all the ips, usernames and passwords
 sys.path.append("/var/nfs/general") # from computer
@@ -83,7 +84,7 @@ class Producer(object):
 
         # job managing
         self.curr_job_number = 0
-        self.not_finishes = None
+        self.not_finished = None # flag that indicates if all tasks were sent to workers
         self.connection_up = False
         self.free_workers = [worker_record(worker_num) for worker_num in range(1, num_of_workers_in_system+1)]
         self.busy_workers = []
@@ -93,6 +94,10 @@ class Producer(object):
         self.listen_workers_thread.setDaemon(True)
         self.listen_workers_thread.start()
 
+        # Average time list for all workers
+        self.average_workers_time = list(np.zeros(num_of_workers_in_system+1))
+
+        # Wait for thread to connect
         while self.connection_up == False:
             pass
 
@@ -103,14 +108,14 @@ class Producer(object):
         """
         print("[listen_to_workers]: begin") # FOR DEBUG
         # wait for messages in the feedback queue
-        self.channel.basic_consume(queue=self.feedback_queue_names[self.to_worker_num], on_message_callback=self.worker_response_to_producer, auto_ack=False)
+        for i in range(1,num_of_workers_in_system+1):
+            self.channel.basic_consume(queue=self.feedback_queue_names[i], on_message_callback=self.worker_response_to_producer, auto_ack=False)
 
         self.connection_up = True
-        while self.not_finishes is None:
+        while self.not_finished is None:
             with self.internal_lock:
                 # waiting for response from workers
                 self.connection.process_data_events()
-
 
 
     def worker_response_to_producer(self, ch, method, props, body):
@@ -121,16 +126,14 @@ class Producer(object):
         #         body -        response content
         #############################################
         print("[worker_response_to_producer]: begin") # FOR DEBUG
-        # print("[worker_response_to_producer]: self.corr_id: " + str(self.corr_id)) # FOR DEBUG
-        # print("[worker_response_to_producer]: props.correlation_id: " + str(props.correlation_id)) # FOR DEBUG
-        # print("[worker_response_to_producer]: body: " + str(body)) # FOR DEBUG
-
-        # if self.corr_id == props.correlation_id:
-        #     self.response = body
+        body = body.decode()
 
         if " [v] from worker" in str(body):
-            print("[worker_response_to_producer]: " + str(body.decode()))  # FOR DEBUG
-            self.response = body
+            print("[worker_response_to_producer]: " + str(body))  # FOR DEBUG
+            self.response = ast.literal_eval(body)
+            self.average_workers_time[self.response["worker_num"]] = self.response["average_time"]
+            print("[worker_response_to_producer]: average_workers_time: " + str(self.average_workers_time[1:]))  # FOR DEBUG
+
 
     def send_task_wait_for_feedback(self):
         #############################################
@@ -144,6 +147,9 @@ class Producer(object):
         jobs_file_name = "./jobs.json"
         with open(jobs_file_name) as f:
             self.all_jobs = json.load(f)
+
+        # Create a file for fusion
+        self.data_for_fusion()
 
         for curr_job_num in self.all_jobs.keys(): # reading jobs one by one from jobs_file
             # create a dictionary: splitting the job to tasks + adding headers
@@ -160,7 +166,6 @@ class Producer(object):
 
                 # connecting to channel
                 self.corr_id = str(np.random.rand())
-                # print("[wait_for_feedback]: corr_id: " + str(self.corr_id)) # FOR DEBUG
 
                 with self.internal_lock:
                     self.channel.basic_publish(exchange=self.exchange_name, routing_key=self.message_queue_names[self.to_worker_num],
@@ -172,8 +177,8 @@ class Producer(object):
                 if self.to_worker_num == num_of_workers_in_system+1:
                     self.to_worker_num = 1
 
-        # close connection
-        self.not_finishes = "finished"
+        # # close connection
+        # self.not_finished = "finished"
 
         # FOR DEBUG
         # # self.listen_workers_thread.join()
@@ -225,11 +230,26 @@ class Producer(object):
                 # write the task to a file in the nfs
                 work_file_name = f'{self.path}/job{curr_job_num}_task{task_num}'
                 with open(work_file_name, 'w') as f_work:
-                    json.dump(sub_mat, f_work)
+                    f_work.write(json.dumps(sub_mat))
 
                 task_num += 1
 
         return k
+
+    def data_for_fusion(self):
+        """
+        Create a file in nfs that contains data for fusion
+        """
+        fusion_file = "data_for_fusion"
+        file_path = f'{self.path}/{fusion_file}'
+        start_time = time.time()
+        data = {"start_time": start_time, "num_of_workers_in_system": num_of_workers_in_system,
+                "jobs_amount": len(self.all_jobs.keys())}
+        print("[data_for_fusion]: data: " + str(data))  # FOR DEBUG
+
+        with open(file_path, 'w') as f_data_for_fusion:
+            f_data_for_fusion.write(json.dumps(data))
+
 
 class worker_record(object):
     def __init__(self, worker_num):

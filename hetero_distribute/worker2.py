@@ -23,6 +23,8 @@ class Worker(object):
         self.worker_num = 2
         self.forbidden_jobs = []
         self.forbidden_val = 0 # under this job ID all jobs are forbidden
+        self.tasks_counter = 0
+        self.average_work_time = 0
 
         # establish a connection with RabbitMQ server
         # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
@@ -39,7 +41,7 @@ class Worker(object):
         self.worker_queue_name = "w" + str(self.worker_num) + "_main"
         self.channel.queue_declare(queue=self.worker_queue_name)
 
-        # creating feedback queue to the main node # FOR DEBUG
+        # creating feedback queue to the main node
         self.feedback_from_worker_queue_name = "fb_w" + str(self.worker_num) + "_main"
         self.channel.queue_declare(queue=self.feedback_from_worker_queue_name)
 
@@ -152,6 +154,7 @@ class Worker(object):
                              properties=pika.BasicProperties(correlation_id=properties.correlation_id),
                              body=str(response_to_main))
         else:
+            self.tasks_counter += 1
             # compute result
             task_content = self.multiply_polynomes(task_content)
             self.result = {"Header": header, "result": task_content}
@@ -165,7 +168,8 @@ class Worker(object):
             self.result["result"] = task_result_file_name
 
             # sending feedback to main
-            response_to_main = f' [v] from worker: worker1 is done: job {header["job_number"]} , task {header["task_number"]}'
+            response_to_main = {"response": f' [v] from worker: worker {self.worker_num} is done: job {header["job_number"]} , task {header["task_number"]}',
+                                "worker_num": self.worker_num ,"average_time": self.average_work_time}
 
             ch.basic_publish(exchange=self.main_exchange_name, routing_key=properties.reply_to,
                              properties=pika.BasicProperties(correlation_id=properties.correlation_id),
@@ -196,7 +200,19 @@ class Worker(object):
         """
 
         """
-        time.sleep(1) # TODO change to simulation results
+        # generate random sleep (=work) time from normal distribute
+        mu, sigma = 4, 0.5 # mean and standard deviation
+        sleep_time = float(np.random.normal(mu, sigma, 1))
+        print("[multiply_polynomes] generated sleep time: " + str(sleep_time)) # FOR DEBUG
+
+        # Do the work (sleep) and measure the work time
+        start_time = time.time()
+        time.sleep(sleep_time) # TODO change to simulation results
+        end_time = time.time()
+        work_time = end_time - start_time
+
+        # Update mean_work_time
+        self.average_work_time = ((self.tasks_counter - 1) * self.average_work_time + work_time) / self.tasks_counter
         return task_content
 
     def update_forbidden_jobs(self):

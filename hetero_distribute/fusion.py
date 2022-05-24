@@ -25,6 +25,9 @@ class Fusion():
         self.forbidden_job_mat = {}
         for i in range(amount_of_workers):
             self.forbidden_job_mat[str(i+1)]=[]
+        self.first_task_flag = True # indicates that we got the first task. Used for reading data from main
+        self.jobs_amount = None
+        self.start_time = None
 
         ###### ------- establish a connection with RabbitMQ server ------- ######
         # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
@@ -83,7 +86,7 @@ class Fusion():
         :param body: msg content
         """
         print(' [x] Received')
-        print(' [x] Converting into json file')
+
         # convert message into json file and save it
         msg = ast.literal_eval(json.dumps(body.decode()))
 
@@ -92,6 +95,19 @@ class Fusion():
         print(" [receive_results] The result received from worker: " + str(dict_msg)) # FOR DEBUG
         msg_header = dict_msg["Header"]
         worker_num = msg_header["worker_num"]
+        task_path = dict_msg["result"]
+        self.nfs_path = os.path.dirname(task_path)
+
+        # Read data from main if it's the first task
+        if self.first_task_flag:
+            self.first_task_flag = False
+            fusion_file = "data_for_fusion"
+            self.data_from_main_path = f'{self.nfs_path}/{fusion_file}'
+            with open(self.data_from_main_path, 'r') as f:
+                data = f.read()
+            data = ast.literal_eval(data)
+            self.jobs_amount = data["jobs_amount"]
+            self.start_time = data["start_time"]
 
         # we want to make sure we did not receive a "leftover" task of one of the finished jobs
         # a "leftover" is a task from an already finished job - happens only when a worker has not yet been notified
@@ -105,10 +121,14 @@ class Fusion():
             print("[receive_results]: count_tasks: " + str(self.count_tasks)) # FOR DEBUG
 
             # save result
-            out_file = open('out.json', 'w')
+            out_file_path = os.path.join(self.nfs_path, 'out.json')
+            out_file = open(out_file_path, 'w')
             out_file.write(msg)
             out_file.close()
             print(' [x] Saved json file')
+
+        # Delete tasks file from nfs
+        os.remove(task_path)
 
         # sending feedback to producer (worker)
         response = {"checksum": ' [v] from fusion: ', "forbidden_jobs": self.forbidden_job_mat[str(worker_num)]}
@@ -122,6 +142,15 @@ class Fusion():
         # after response sent, we delete worker i's forbidden jobs
         self.update_forbidden_jobs(worker_num)
 
+        # checks if we got all jobs done already
+        if self.jobs_amount == 0:
+            finish_time = time.time()
+            work_time = finish_time - self.start_time
+            print("[receive_results]: finished working. work time: " + str(work_time) )
+
+            with open(self.data_from_main_path, 'w') as f:
+                f.write(json.dumps(work_time))
+
     def count_tasks_func(self, msg_header):
         """
         Count_tasks is a dictionary of job numbers
@@ -133,6 +162,7 @@ class Fusion():
             # if we received enough tasks for the job
             if self.count_tasks[str(msg_header["job_number"])][1]==self.count_tasks[str(msg_header["job_number"])][0]:
                 self.purge_queues_func(msg_header["job_number"])
+                self.jobs_amount -= 1 # update remaining jobs amount
         else: # The first task for that job
             self.count_tasks[str(msg_header["job_number"])] = [msg_header["k"], 1]
 
