@@ -228,9 +228,10 @@ class Producer(object):
                 sub_mat = matrix[row_start:row_end][col_start:col_end]
 
                 # write the task to a file in the nfs
-                work_file_name = f'{self.path}/job{curr_job_num}_task{task_num}'
+                work_file_name = f'{local_nfs_path}/job{curr_job_num}_task{task_num}'
                 with open(work_file_name, 'w') as f_work:
                     f_work.write(json.dumps(sub_mat))
+                os.chmod(work_file_name, 0o666)
 
                 task_num += 1
 
@@ -241,7 +242,7 @@ class Producer(object):
         Create a file in nfs that contains data for fusion
         """
         fusion_file = "data_for_fusion"
-        file_path = f'{self.path}/{fusion_file}'
+        file_path = f'{local_nfs_path}/{fusion_file}'
         start_time = time.time()
         data = {"start_time": start_time, "num_of_workers_in_system": num_of_workers_in_system,
                 "jobs_amount": len(self.all_jobs.keys())}

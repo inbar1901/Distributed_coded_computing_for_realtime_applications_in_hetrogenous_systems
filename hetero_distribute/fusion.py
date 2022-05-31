@@ -122,9 +122,9 @@ class Fusion():
 
             # save result
             out_file_path = os.path.join(self.nfs_path, 'out.json')
-            out_file = open(out_file_path, 'w')
-            out_file.write(msg)
-            out_file.close()
+            with open(out_file_path, 'w+') as f_out_file:
+                f_out_file.write(msg)
+
             print(' [x] Saved json file')
 
         # Delete tasks file from nfs
