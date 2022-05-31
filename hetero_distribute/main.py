@@ -241,6 +241,14 @@ class Producer(object):
         """
         Create a file in nfs that contains data for fusion
         """
+
+        # create a file for fusion output
+        fusion_out_file_name = f'{local_nfs_path}/out'
+        with open(fusion_out_file_name, 'w') as f_out:
+            f_out.write(json.dumps(""))
+        os.chmod(fusion_out_file_name, 0o666)
+
+        # create a file that contains control data for fusion
         fusion_file = "data_for_fusion"
         file_path = f'{local_nfs_path}/{fusion_file}'
         start_time = time.time()
@@ -250,7 +258,7 @@ class Producer(object):
 
         with open(file_path, 'w') as f_data_for_fusion:
             f_data_for_fusion.write(json.dumps(data))
-
+        os.chmod(file_path, 0o666)
 
 class worker_record(object):
     def __init__(self, worker_num):

@@ -121,9 +121,9 @@ class Fusion():
             print("[receive_results]: count_tasks: " + str(self.count_tasks)) # FOR DEBUG
 
             # save result
-            out_file_path = os.path.join(self.nfs_path, 'out.json')
-            with open(out_file_path, 'w+') as f_out_file:
-                f_out_file.write(msg)
+            out_file_path = os.path.join(self.nfs_path, 'out')
+            with open(out_file_path, 'w') as f_out_file:
+                f_out_file.write(json.dumps(msg))
 
             print(' [x] Saved json file')
 
