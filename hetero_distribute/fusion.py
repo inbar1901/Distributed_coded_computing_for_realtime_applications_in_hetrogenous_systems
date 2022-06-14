@@ -11,7 +11,7 @@ import collections
 sys.path.append("/var/nfs/general") # from computer
 sys.path.append("/nfs/general") # from servers
 
-import cred
+import our_cred_ig
 
 amount_of_workers = 5
 
@@ -31,8 +31,8 @@ class Fusion():
 
         ###### ------- establish a connection with RabbitMQ server ------- ######
         # using our vhost named 'proj_host' in IP <cred.pc_ip> and port 5672
-        self.credentials = pika.PlainCredentials(cred.rbt_user, cred.rbt_password)
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(cred.pc_ip, 5672, cred.rbt_vhost, self.credentials))
+        self.credentials = pika.PlainCredentials(our_cred_ig.rbt_user, our_cred_ig.rbt_password)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(our_cred_ig.pc_ip, 5672, our_cred_ig.rbt_vhost, self.credentials))
         self.channel = self.connection.channel()
 
         # creating an exchange
