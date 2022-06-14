@@ -13,7 +13,7 @@ sys.path.append("/nfs/general") # from servers
 
 import cred
 
-amount_of_workers = 3
+amount_of_workers = 5
 
 local_nfs_path = "/var/nfs/general"
 server_nfs_path = "/nfs/general"
@@ -39,7 +39,37 @@ class Fusion():
         self.exchange_name = 'fusion_exchange'
         self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='direct')
 
-        # worker 1 ----------------------------------------------------------------------
+        # declares
+        self.message_queue_names = {}
+        self.worker_to_fusion_res = {}
+        #self.feedback_queue_names = {}
+        #self.fb_fusion_to_worker_res = {}
+
+        for i in range(1, amount_of_workers+1):
+            # declare the worker->fusion work queues
+            self.message_queue_names[i] = "w" + str(i) + "_fusion"
+            self.worker_to_fusion_res[i] = self.channel.queue_declare(
+                queue=self.message_queue_names[i])  # message queue = sends work to workers
+
+            # declare the fusion->worker feedback queues
+            #self.feedback_queue_names[i] = "fb_w" + str(i) + "_fusion"
+            #self.fb_fusion_to_worker_res[i] = self.channel.queue_declare(queue=self.feedback_queue_names[i])
+
+            # setting the feedback queue we declared as the feedback queue of the worker->fusion queue
+            #self.worker_to_fusion_res[i].method.queue = self.feedback_queue_names[i]
+
+            # connect exchange and message (worker->fusion) queue
+            self.channel.queue_bind(exchange=self.exchange_name, queue=self.message_queue_names[i])
+
+            # connect exchange and message (fusion->worker) queue
+            #self.channel.queue_bind(exchange=self.exchange_name, queue=self.feedback_queue_names[i])
+
+            # receive task result from workers
+            self.channel.basic_consume(queue=self.message_queue_names[i], on_message_callback=self.receive_results)
+
+
+        ######################################################################################
+        """# worker 1 ----------------------------------------------------------------------
         # create a message queue
         worker1_queue_name = "w1_fusion"
         self.producer1_channel = self.channel.queue_declare(queue=worker1_queue_name)
@@ -70,7 +100,8 @@ class Fusion():
         self.channel.basic_consume(queue=worker3_queue_name, on_message_callback=self.receive_results)
 
         # connect exchange and message queue
-        self.channel.queue_bind(exchange=self.exchange_name, queue=worker3_queue_name)
+        self.channel.queue_bind(exchange=self.exchange_name, queue=worker3_queue_name)"""
+        ##########################################################################
 
         # consuming ---------------------------------------------------------------------
         # start listening for task results
